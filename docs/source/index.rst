@@ -4,11 +4,10 @@ burnsidelib
 ``burnsidelib`` is a small, single-file SageMath library for computations in
 Burnside rings of finite groups.
 
-It is designed for a classroom workflow: students copy ``burnsidelib.py`` into
-the same folder as their Sage worksheet or script and load it directly.
-
 Quick start
 -----------
+
+With ``burnsidelib.py`` in the same directory as your notebook or `.sage` file:
 
 ::
 

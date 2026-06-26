@@ -1,9 +1,6 @@
 Installation
 ============
 
-For students
-------------
-
 There is no package installation step.
 
 1. Download ``burnsidelib.py`` from the repository.
