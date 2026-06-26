@@ -26,7 +26,7 @@ x.marks()
 
 ## Documentation
 
-The documentation source lives in `docs/source`.  To build it locally:
+The documentation source lives in `docs/source` and is hosted online [here](https://benspitz.com/burnsidelib).  To build it locally:
 
 ```sh
 sage -pip install -r docs/requirements.txt
