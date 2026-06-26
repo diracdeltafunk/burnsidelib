@@ -1,3 +1,22 @@
+"""Burnside rings for finite groups in SageMath.
+
+The library is intentionally a single file.  Put ``burnsidelib.py`` in the
+same directory as a Sage worksheet or ``.sage`` script, then run
+``load("burnsidelib.py")``.
+
+The main entry point is :class:`BurnsideRing`.
+
+EXAMPLES::
+
+    sage: load("burnsidelib.py")
+    sage: C2 = gap("CyclicGroup(2)")
+    sage: A = BurnsideRing(C2)
+    sage: A
+    Burnside ring of C2
+    sage: A.basis_names()
+    ('[C2/1]', '[C2/C2]')
+"""
+
 from collections import Counter
 
 from sage.categories.algebras_with_basis import AlgebrasWithBasis
@@ -45,7 +64,26 @@ def _nonnegative_integer(k, name):
 
 
 class BurnsideRingElement(CombinatorialFreeModule.Element):
+    """An element of a Burnside ring.
+
+    Users usually create elements from a :class:`BurnsideRing` rather than
+    constructing this class directly.  Elements can be viewed in the orbit
+    basis with :meth:`coefficients` or in the mark basis with :meth:`marks`.
+    """
+
     def coefficients(self):
+        """Return the coefficients in the orbit basis.
+
+        The order of the entries agrees with ``parent().basis_names()`` and
+        ``parent().subgroup_representatives()``.
+
+        EXAMPLES::
+
+            sage: load("burnsidelib.py")
+            sage: A = BurnsideRing(gap("CyclicGroup(2)"))
+            sage: (3*A.gen(0) - 4*A.one()).coefficients()
+            (3, -4)
+        """
         parent = self.parent()
         coeffs = self.monomial_coefficients()
         return vector(
@@ -53,31 +91,96 @@ class BurnsideRingElement(CombinatorialFreeModule.Element):
         )
 
     def coeffs(self):
+        """Short alias for :meth:`coefficients`."""
         return self.coefficients()
 
     def list(self):
+        """Return the orbit-basis coefficients as a Python list."""
         return list(self.coefficients())
 
     def marks(self):
+        """Return the marks of this Burnside ring element.
+
+        The mark at a subgroup ``H`` is the number of ``H``-fixed points,
+        extended linearly to virtual finite ``G``-sets.
+
+        EXAMPLES::
+
+            sage: load("burnsidelib.py")
+            sage: A = BurnsideRing(gap("CyclicGroup(2)"))
+            sage: (3*A.gen(0) - 4*A.one()).marks()
+            (2, -4)
+        """
         return self.coefficients() * self.parent()._tommat
 
     def restrict(self, H):
+        """Restrict this element to a subgroup ``H``.
+
+        INPUT:
+
+        - ``H`` -- a GAP subgroup of the group of this element's parent ring
+
+        OUTPUT:
+
+        An element of ``BurnsideRing(H)``.
+
+        EXAMPLES::
+
+            sage: load("burnsidelib.py")
+            sage: C2 = gap("CyclicGroup(2)")
+            sage: e = C2.TrivialSubgroup()
+            sage: A = BurnsideRing(C2)
+            sage: A.gen(0).restrict(e)
+            2*[1/1]
+        """
         A_G = self.parent()
         A_H = BurnsideRing(H)
         return A_H.from_coefficients(self.coefficients() * A_G.restriction_matrix(H))
 
     def res(self, H):
+        """Short alias for :meth:`restrict`."""
         return self.restrict(H)
 
     def transfer(self, G):
+        """Transfer this element to a larger group ``G``.
+
+        INPUT:
+
+        - ``G`` -- a GAP group containing the group of this element's parent
+          ring as a subgroup
+
+        OUTPUT:
+
+        An element of ``BurnsideRing(G)``.
+        """
         A_H = self.parent()
         A_G = BurnsideRing(G)
         return A_G.from_coefficients(self.coefficients() * A_H.transfer_matrix(G))
 
     def tr(self, G):
+        """Short alias for :meth:`transfer`."""
         return self.transfer(G)
 
     def norm(self, G):
+        """Apply the multiplicative norm to a larger group ``G``.
+
+        INPUT:
+
+        - ``G`` -- a GAP group containing the group of this element's parent
+          ring as a subgroup
+
+        OUTPUT:
+
+        An element of ``BurnsideRing(G)``.
+
+        EXAMPLES::
+
+            sage: load("burnsidelib.py")
+            sage: C2 = gap("CyclicGroup(2)")
+            sage: e = C2.TrivialSubgroup()
+            sage: BurnsideRing(e).one().norm(C2)
+            [C2/C2]
+        """
         A_H = self.parent()
         A_G = BurnsideRing(G)
         A_H._check_subgroup_of(G)
@@ -94,15 +197,34 @@ class BurnsideRingElement(CombinatorialFreeModule.Element):
         return A_G.from_marks(marks_out)
 
     def nm(self, G):
+        """Short alias for :meth:`norm`."""
         return self.norm(G)
 
     def symmetric_power(self, k):
+        """Return the ``k``-th symmetric power of this element.
+
+        INPUT:
+
+        - ``k`` -- a nonnegative integer
+        """
         return self._power_operation(k, "symmetric")
 
     def exterior_power(self, k):
+        """Return the ``k``-th exterior power of this element.
+
+        INPUT:
+
+        - ``k`` -- a nonnegative integer
+        """
         return self._power_operation(k, "exterior")
 
     def siebeneicher_power(self, k):
+        """Return the ``k``-th Siebeneicher power of this element.
+
+        INPUT:
+
+        - ``k`` -- a nonnegative integer
+        """
         return self._power_operation(k, "siebeneicher")
 
     def _power_operation(self, k, operation):
@@ -136,6 +258,30 @@ class BurnsideRingElement(CombinatorialFreeModule.Element):
 
 
 class BurnsideRing(CombinatorialFreeModule):
+    """The Burnside ring of a finite group.
+
+    INPUT:
+
+    - ``group`` -- a GAP group
+    - ``names`` -- ignored; present so Sage generator notation works
+    - ``gap_expression`` -- optional string used internally by
+      :meth:`from_gap` to make pickling possible
+
+    The basis elements are transitive ``G``-sets ``G/H``, with one basis
+    element for each conjugacy class of subgroups.  Their order is the table
+    of marks order used by GAP.
+
+    EXAMPLES::
+
+        sage: load("burnsidelib.py")
+        sage: C2 = gap("CyclicGroup(2)")
+        sage: A = BurnsideRing(C2)
+        sage: A.basis_names()
+        ('[C2/1]', '[C2/C2]')
+        sage: A.one()
+        [C2/C2]
+    """
+
     Element = BurnsideRingElement
 
     @staticmethod
@@ -175,6 +321,18 @@ class BurnsideRing(CombinatorialFreeModule):
 
     @classmethod
     def from_gap(cls, gap_expression):
+        """Construct a Burnside ring from a GAP expression string.
+
+        This is useful when the ring or its elements need to be pickled,
+        because the group can be reconstructed from the stored expression.
+
+        EXAMPLES::
+
+            sage: load("burnsidelib.py")
+            sage: A = BurnsideRing.from_gap("CyclicGroup(2)")
+            sage: A
+            Burnside ring of C2
+        """
         return cls(gap_expression, gap_expression=gap_expression)
 
     def __reduce__(self):
@@ -246,57 +404,99 @@ class BurnsideRing(CombinatorialFreeModule):
         return self._basis_names[i]
 
     def one_basis(self):
+        """Return the basis index of the multiplicative identity."""
         return self._index_of_unit
 
     def product_on_basis(self, i, j):
+        """Return the product of two orbit-basis elements."""
         if j < i:
             i, j = j, i
         return self.from_coefficients(self._multiplication_table[(i, j)])
 
     def group(self):
+        """Return the underlying GAP group."""
         return self._group
 
     def table_of_marks(self):
+        """Return a copy of the table of marks matrix."""
         return matrix(ZZ, self._tommat)
 
     def subgroup_representatives(self):
+        """Return representatives of conjugacy classes of subgroups."""
         return tuple(self._cc_reps)
 
     def basis_names(self):
+        """Return printable names for the orbit basis."""
         return tuple(self._basis_names)
 
     def gen_names(self):
+        """Return generator names, equal to :meth:`basis_names`."""
         return self.basis_names()
 
     def orbit_basis(self):
+        """Return the orbit-basis elements as a tuple."""
         return tuple(self.monomial(i) for i in range(self._num_cc_subgroups))
 
     def gens(self):
+        """Return the orbit-basis elements as Sage generators."""
         return self.orbit_basis()
 
     def gen(self, i=0):
+        """Return the ``i``-th orbit-basis generator."""
         return self.orbit_basis()[i]
 
     def ngens(self):
+        """Return the number of orbit-basis generators."""
         return self._num_cc_subgroups
 
     def _first_ngens(self, n):
         return self.orbit_basis()[:n]
 
     def from_coefficients(self, v):
+        """Construct an element from orbit-basis coefficients.
+
+        INPUT:
+
+        - ``v`` -- an iterable of integers, one for each orbit-basis element
+
+        EXAMPLES::
+
+            sage: load("burnsidelib.py")
+            sage: A = BurnsideRing(gap("CyclicGroup(2)"))
+            sage: A.from_coefficients([3, -4])
+            3*[C2/1] - 4*[C2/C2]
+        """
         coeffs = _integer_vector(v, self._num_cc_subgroups, "coefficients")
         return self._from_dict(
             {i: coeff for i, coeff in enumerate(coeffs) if coeff != 0}, coerce=False
         )
 
     def from_vec(self, v):
+        """Short alias for :meth:`from_coefficients`."""
         return self.from_coefficients(v)
 
     def from_marks(self, v):
+        """Construct an element from its marks.
+
+        INPUT:
+
+        - ``v`` -- an iterable of integers, one for each subgroup conjugacy
+          class in table-of-marks order
+
+        Raises ``ValueError`` if the given integers are not marks of an
+        element of this Burnside ring.
+        """
         marks = _integer_vector(v, self._num_cc_subgroups, "marks")
         return self.from_coefficients(self._coefficients_from_marks(marks))
 
     def restriction_matrix(self, H, basis="coefficients"):
+        """Return the matrix for restriction to a subgroup ``H``.
+
+        INPUT:
+
+        - ``H`` -- a GAP subgroup of this ring's group
+        - ``basis`` -- either ``"coefficients"`` or ``"marks"``
+        """
         self._check_contains_subgroup(H)
         A_H = BurnsideRing(H)
         marks_matrix = matrix(
@@ -314,6 +514,13 @@ class BurnsideRing(CombinatorialFreeModule):
         raise ValueError('basis must be either "coefficients" or "marks"')
 
     def transfer_matrix(self, G, basis="coefficients"):
+        """Return the matrix for transfer to a larger group ``G``.
+
+        INPUT:
+
+        - ``G`` -- a GAP group containing this ring's group as a subgroup
+        - ``basis`` -- either ``"coefficients"`` or ``"marks"``
+        """
         self._check_subgroup_of(G)
         A_G = BurnsideRing(G)
         coefficient_matrix = matrix(

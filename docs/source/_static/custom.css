@@ -1,0 +1,14 @@
+.sphinxsidebarwrapper,
+.content {
+  overflow-wrap: anywhere;
+}
+
+.sig,
+code,
+pre {
+  font-size: 0.95em;
+}
+
+.admonition {
+  border-radius: 6px;
+}

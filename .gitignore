@@ -1,0 +1,5 @@
+__pycache__/
+*.py[cod]
+*.sage.py
+.sage/
+docs/_build/
