@@ -103,20 +103,122 @@ assert "[4: Q8/C4]" in AQ8.basis_names()
 v = A.from_coefficients([-1, 2])
 assert v.symmetric_power(0) == A.one()
 assert v.exterior_power(0) == A.one()
+assert v.dual_exterior_power(0) == A.one()
 assert v.siebeneicher_power(0) == A.one()
 assert v.symmetric_power(1) == v
 assert v.exterior_power(1) == v
+assert v.dual_exterior_power(1) == v
 assert v.siebeneicher_power(1) == v
+assert v.symmetric_adams_operation(1) == v
+assert v.exterior_adams_operation(1) == v
+assert v.dual_exterior_adams_operation(1) == v
+assert v.siebeneicher_adams_operation(1) == v
 assert v.symmetric_power(2) == v
 assert v.exterior_power(2) == A.zero()
 assert v.siebeneicher_power(2) == v
+assert v.symmetric_adams_operation(2) == A.zero()
+assert v.exterior_adams_operation(2) == v * v
+assert v.siebeneicher_adams_operation(2) == A.zero()
+assert v.adams_operation(2, "symmetric") == v.symmetric_adams_operation(2)
+assert v.adams_operation(2, "dual_exterior") == v.dual_exterior_adams_operation(2)
+assert v.adams_operation_by_marks(2, "symmetric") == v.symmetric_adams_operation(2)
 assert_raises(ValueError, lambda: v.symmetric_power(-1))
+assert_raises(ValueError, lambda: v.symmetric_adams_operation(0))
+assert_raises(ValueError, lambda: v.adams_operation_by_marks(0, "symmetric"))
+assert_raises(ValueError, lambda: v.adams_operation(1, "ghost"))
 
 for k in range(1, 5):
     total = A.zero()
     for i in range(k + 1):
         total += (-1) ** i * v.siebeneicher_power(i) * v.symmetric_power(k - i)
     assert total == A.zero()
+
+for operation, power_method, adams_method in [
+    (
+        "symmetric",
+        BurnsideRingElement.symmetric_power,
+        BurnsideRingElement.symmetric_adams_operation,
+    ),
+    (
+        "exterior",
+        BurnsideRingElement.exterior_power,
+        BurnsideRingElement.exterior_adams_operation,
+    ),
+    (
+        "dual exterior",
+        BurnsideRingElement.dual_exterior_power,
+        BurnsideRingElement.dual_exterior_adams_operation,
+    ),
+    (
+        "siebeneicher",
+        BurnsideRingElement.siebeneicher_power,
+        BurnsideRingElement.siebeneicher_adams_operation,
+    ),
+]:
+    assert v.adams_operation(3, operation) == adams_method(v, 3)
+    lambdas = [A.one()] + [power_method(v, n) for n in range(1, 5)]
+    adams = [None] + [adams_method(v, n) for n in range(1, 5)]
+    for n in range(1, 5):
+        lhs = A.zero()
+        for i in range(1, n + 1):
+            lhs += adams[i] * ((-1) ** (n - i)) * lambdas[n - i]
+        assert lhs == -n * ((-1) ** n) * lambdas[n]
+
+free_orbit = A.gen(0)
+assert free_orbit.symmetric_adams_operation(2) == -2 * A.one()
+assert free_orbit.exterior_adams_operation(2) == 2 * free_orbit - 2 * A.one()
+assert free_orbit.dual_exterior_adams_operation(2) == -2 * free_orbit + 2 * A.one()
+assert free_orbit.siebeneicher_adams_operation(2) == 2 * A.one()
+
+
+# Adams operations by Newton recursion agree with the mark-series construction.
+S4 = gap("SymmetricGroup(4)")
+AS4 = BurnsideRing(S4)
+s4_gens = AS4.gens()
+s4_test_elements = [
+    AS4.zero(),
+    AS4.one(),
+    s4_gens[0],
+    s4_gens[1] + 2 * s4_gens[3] - AS4.one(),
+    sum(s4_gens),
+    3 * s4_gens[0] - s4_gens[2] + s4_gens[5],
+]
+
+for x in s4_test_elements:
+    for operation, power_method, adams_method in [
+        (
+            "symmetric",
+            BurnsideRingElement.symmetric_power,
+            BurnsideRingElement.symmetric_adams_operation,
+        ),
+        (
+            "exterior",
+            BurnsideRingElement.exterior_power,
+            BurnsideRingElement.exterior_adams_operation,
+        ),
+        (
+            "dual exterior",
+            BurnsideRingElement.dual_exterior_power,
+            BurnsideRingElement.dual_exterior_adams_operation,
+        ),
+        (
+            "siebeneicher",
+            BurnsideRingElement.siebeneicher_power,
+            BurnsideRingElement.siebeneicher_adams_operation,
+        ),
+    ]:
+        lambda1 = power_method(x, 1)
+        lambda2 = power_method(x, 2)
+        lambda3 = power_method(x, 3)
+        assert adams_method(x, 2) == lambda1 * lambda1 - 2 * lambda2
+        assert (
+            adams_method(x, 3)
+            == lambda1 * lambda1 * lambda1 - 3 * lambda1 * lambda2 + 3 * lambda3
+        )
+        for k in range(1, 5):
+            assert x.adams_operation(k, operation) == x.adams_operation_by_marks(
+                k, operation
+            )
 
 
 # Pickling is supported for rings rebuilt from a GAP expression.

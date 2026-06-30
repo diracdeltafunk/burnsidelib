@@ -63,6 +63,26 @@ def _nonnegative_integer(k, name):
     return k
 
 
+def _positive_integer(k, name):
+    try:
+        k = ZZ(k)
+    except (TypeError, ValueError) as err:
+        raise ValueError(f"{name} must be a positive integer") from err
+    if k <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return k
+
+
+def _normalize_power_operation(operation):
+    operation = str(operation).strip().lower().replace("_", " ")
+    if operation in ("symmetric", "exterior", "siebeneicher", "dual exterior"):
+        return operation
+    raise ValueError(
+        'operation must be one of "symmetric", "exterior", '
+        '"siebeneicher", or "dual exterior"'
+    )
+
+
 class BurnsideRingElement(CombinatorialFreeModule.Element):
     """An element of a Burnside ring.
 
@@ -218,6 +238,15 @@ class BurnsideRingElement(CombinatorialFreeModule.Element):
         """
         return self._power_operation(k, "exterior")
 
+    def dual_exterior_power(self, k):
+        """Return the ``k``-th dual exterior power of this element.
+
+        INPUT:
+
+        - ``k`` -- a nonnegative integer
+        """
+        return self._power_operation(k, "dual exterior")
+
     def siebeneicher_power(self, k):
         """Return the ``k``-th Siebeneicher power of this element.
 
@@ -227,34 +256,143 @@ class BurnsideRingElement(CombinatorialFreeModule.Element):
         """
         return self._power_operation(k, "siebeneicher")
 
+    def adams_operation(self, k, operation):
+        """Return the ``k``-th Adams operation for a pre-lambda structure.
+
+        INPUT:
+
+        - ``k`` -- a positive integer
+        - ``operation`` -- one of ``"symmetric"``, ``"exterior"``,
+          ``"siebeneicher"``, or ``"dual exterior"``
+
+        The Adams operations are computed from the corresponding power
+        operations by the Newton identities.
+        """
+        return self._adams_operation(k, operation)
+
+    def adams_operation_by_marks(self, k, operation):
+        """Return an Adams operation via the mark generating function.
+
+        INPUT:
+
+        - ``k`` -- a positive integer
+        - ``operation`` -- one of ``"symmetric"``, ``"exterior"``,
+          ``"siebeneicher"``, or ``"dual exterior"``
+
+        This computes each subgroup mark as the coefficient of ``t^k`` in
+        ``-t d/dt log(sum_n lambda^n(x)(-t)^n)`` and then reconstructs the
+        element from its marks.
+        """
+        return self._adams_operation_by_marks(k, operation)
+
+    def symmetric_adams_operation(self, k):
+        """Return the ``k``-th Adams operation for symmetric powers.
+
+        INPUT:
+
+        - ``k`` -- a positive integer
+        """
+        return self._adams_operation(k, "symmetric")
+
+    def exterior_adams_operation(self, k):
+        """Return the ``k``-th Adams operation for exterior powers.
+
+        INPUT:
+
+        - ``k`` -- a positive integer
+        """
+        return self._adams_operation(k, "exterior")
+
+    def dual_exterior_adams_operation(self, k):
+        """Return the ``k``-th Adams operation for dual exterior powers.
+
+        INPUT:
+
+        - ``k`` -- a positive integer
+        """
+        return self._adams_operation(k, "dual exterior")
+
+    def siebeneicher_adams_operation(self, k):
+        """Return the ``k``-th Adams operation for Siebeneicher powers.
+
+        INPUT:
+
+        - ``k`` -- a positive integer
+        """
+        return self._adams_operation(k, "siebeneicher")
+
+    def _adams_operation(self, k, operation):
+        k = _positive_integer(k, "k")
+        operation = _normalize_power_operation(operation)
+        n_max = int(k)
+        A_G = self.parent()
+        lambdas = [A_G.one()] + [
+            self._power_operation(n, operation) for n in range(1, n_max + 1)
+        ]
+        adams = [None]
+
+        for n in range(1, n_max + 1):
+            value = -ZZ(n) * ((-1) ** n) * lambdas[n]
+            for i in range(1, n):
+                value -= adams[i] * ((-1) ** (n - i)) * lambdas[n - i]
+            adams.append(value)
+
+        return adams[n_max]
+
+    def _adams_operation_by_marks(self, k, operation):
+        k = _positive_integer(k, "k")
+        operation = _normalize_power_operation(operation)
+        n_max = int(k)
+        A_G = self.parent()
+        R = PowerSeriesRing(QQ, "t", default_prec=n_max + 1)
+        t = R.gen()
+        marks_out = vector(QQ, A_G._num_cc_subgroups)
+
+        for i, H in enumerate(A_G._cc_reps):
+            lambda_series = self._power_series_for_restriction(
+                self.restrict(H), operation, R, t
+            )
+            signed_lambda_series = R.zero()
+            for n, coeff in enumerate(lambda_series.padded_list(n_max + 1)):
+                signed_lambda_series += coeff * (-t) ** n
+            adams_series = -t * signed_lambda_series.derivative()
+            adams_series = adams_series / signed_lambda_series
+            marks_out[i] = adams_series.padded_list(n_max + 1)[n_max]
+
+        return A_G.from_marks(marks_out)
+
     def _power_operation(self, k, operation):
         k = _nonnegative_integer(k, "k")
+        operation = _normalize_power_operation(operation)
         A_G = self.parent()
         R = PowerSeriesRing(QQ, "t", default_prec=int(k) + 1)
         t = R.gen()
         marks_out = vector(QQ, A_G._num_cc_subgroups)
 
         for i, H in enumerate(A_G._cc_reps):
-            restricted = self.restrict(H)
-            A_H = restricted.parent()
-            series = R.one()
-            for j, coeff in enumerate(restricted.coefficients()):
-                orbit_size = ZZ(A_H._tommat[j, 0])
-                if coeff == 0:
-                    continue
-                if operation == "symmetric":
-                    series *= (1 - t**orbit_size) ** (-coeff)
-                elif operation == "exterior":
-                    series *= (1 + t**orbit_size) ** coeff
-                elif operation == "siebeneicher":
-                    series *= (1 - (-t) ** orbit_size) ** coeff
-                elif operation == "dual exterior":
-                    series *= (1 + (-t) ** orbit_size) ** (-coeff)
-                else:
-                    raise ValueError(f"unknown power operation: {operation}")
+            series = self._power_series_for_restriction(
+                self.restrict(H), operation, R, t
+            )
             marks_out[i] = series.padded_list(int(k) + 1)[int(k)]
 
         return A_G.from_marks(marks_out)
+
+    def _power_series_for_restriction(self, restricted, operation, R, t):
+        A_H = restricted.parent()
+        series = R.one()
+        for j, coeff in enumerate(restricted.coefficients()):
+            orbit_size = ZZ(A_H._tommat[j, 0])
+            if coeff == 0:
+                continue
+            if operation == "symmetric":
+                series *= (1 - t**orbit_size) ** (-coeff)
+            elif operation == "exterior":
+                series *= (1 + t**orbit_size) ** coeff
+            elif operation == "siebeneicher":
+                series *= (1 - (-t) ** orbit_size) ** coeff
+            elif operation == "dual exterior":
+                series *= (1 + (-t) ** orbit_size) ** (-coeff)
+        return series
 
 
 class BurnsideRing(CombinatorialFreeModule):

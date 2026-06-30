@@ -90,8 +90,8 @@ coordinates or in mark coordinates::
 Power operations
 ----------------
 
-The library includes symmetric powers, exterior powers, and Siebeneicher
-powers of virtual Burnside ring elements::
+The library includes symmetric powers, exterior powers, dual exterior powers,
+and Siebeneicher powers of virtual Burnside ring elements::
 
     sage: v = A.from_coefficients([-1, 2])
     sage: v.symmetric_power(2)
@@ -100,6 +100,16 @@ powers of virtual Burnside ring elements::
     0
     sage: v.siebeneicher_power(2)
     -[C2/1] + 2*[C2/C2]
+
+Adams operations are available for these pre-lambda structures::
+
+    sage: v.exterior_adams_operation(2)
+    -2*[C2/1] + 4*[C2/C2]
+    sage: v.adams_operation(2, "siebeneicher")
+    0
+
+The generic :meth:`~burnsidelib.BurnsideRingElement.adams_operation_by_marks`
+method computes the same Adams operations from the mark power series.
 
 Pickling
 --------

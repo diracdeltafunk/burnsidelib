@@ -43,4 +43,11 @@ Elements
       nm,
       symmetric_power,
       exterior_power,
-      siebeneicher_power
+      dual_exterior_power,
+      siebeneicher_power,
+      adams_operation,
+      adams_operation_by_marks,
+      symmetric_adams_operation,
+      exterior_adams_operation,
+      dual_exterior_adams_operation,
+      siebeneicher_adams_operation
